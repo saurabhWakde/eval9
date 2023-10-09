@@ -5,20 +5,19 @@ const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 
+require("dotenv").config();
+
 const app = express();
 const port = process.env.PORT || 3005;
 
-const config = {
-  jwtSecret: '1234',
-  dbUri: 'mongodb+srv://saurabh:Tp1JJqrz8duCkbav@cluster0.p4hftyi.mongodb.net/Todos',
-};
+
 
 // MongoDB Setup
-mongoose.connect(config.dbUri, { useNewUrlParser: true, useUnifiedTopology: true });
-mongoose.connection.on('error', (err) => {
-  console.error('MongoDB connection error:', err);
-});
-
+mongoose
+  .connect(process.env.MONGO_URL, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
 // Models
 const User = mongoose.model('User', {
   email: { type: String, required: true, unique: true },
@@ -59,6 +58,10 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // Routes
+app.get('/',(req,res)=>
+{
+    res.send("welcome to homepage")
+})
 app.post('/auth/signup', async (req, res) => {
   try {
     const { email, password, ipAddress } = req.body;
