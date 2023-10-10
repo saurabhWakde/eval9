@@ -128,10 +128,6 @@ app.post('/login', async (req, res) => {
 });
 
 
-
-
-
-
 app.post('/todos', authMiddleware, async (req, res) => {
   try {
     const { taskname, status, tag } = req.body;
@@ -175,7 +171,7 @@ app.get('/todos', authMiddleware, async (req, res) => {
 app.patch('/todos/:id', authMiddleware, async (req, res) => {
   try {
     const { taskname, status, tag } = req.body;
-    const { id } = req.params;
+    const { id } = req.params.id;
 
 
     if (!taskname && !status && !tag) {
