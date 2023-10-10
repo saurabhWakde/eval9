@@ -1,9 +1,13 @@
+
 const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+
+
+
 const { connection } = require("./config/config");
 
 
@@ -14,65 +18,73 @@ app.use(cors());
 app.use(express.json());
 const port = process.env.PORT || 3000;
 
-const User = mongoose.model('User', {
+
+
+const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  ipAddress: { type: String },
+  ipAddress: { type: String }
 });
 
-const Todo = mongoose.model('Todo', {
+const TodoSchema = new mongoose.Schema({
   taskname: { type: String, required: true },
   status: { type: String, enum: ['pending', 'done'], required: true },
   tag: { type: String, enum: ['personal', 'official', 'family'], required: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 });
 
-// Middleware
+const User = mongoose.model('User', UserSchema);
+const Todo = mongoose.model('Todo', TodoSchema);
+
+
 const authMiddleware = (req, res, next) => {
-  // Get the token from the request headers
-  const token = req.headers.authorization;
-  console.log('Received token:', token);
+  const token = req.header('x-auth-token');
 
   if (!token) {
-    return res.status(401).json({ error: 'Authentication required' });
+    return res.status(401).json({ msg: 'Authorization denied' });
   }
 
-  // Verify the token
-  jwt.verify(token, process.env.jwtSecret, (err, decoded) => {
-    if (err) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-
-    // Attach the user ID to the request for use in controllers
-    req.userId = decoded.userId;
-
-    next(); // Proceed to the next middleware or route handler
-  });
+  try {
+    const decoded = jwt.verify(token, process.env.jwtSecret);
+    req.user = decoded.userId; 
+    next();
+  } catch (err) {
+    res.status(401).json({ msg: 'Token is not valid' });
+  }
 };
 
-app.use(cors());
-app.use(bodyParser.json());
 
-// Routes
+
 app.get('/',(req,res)=>
 {
-    res.send("welcome to homepage")
+  res.send("Welcome to homepage")
 })
+
+
 app.post('/signup', async (req, res) => {
   try {
     const { email, password, ipAddress } = req.body;
 
-    // Validate user input
+ 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ email, password: hashedPassword, ipAddress });
-    await user.save();
 
-    // Create a JWT token
-    const token = jwt.sign({ userId: user._id },process.env.jwtSecret);
+    const existingUser = await User.findOne({ email });
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'Email already exists' });
+    }
+
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newUser = new User({ email, password: hashedPassword, ipAddress });
+    await newUser.save();
+
+
+    const token = jwt.sign({ userId: newUser._id }, process.env.jwtSecret);
 
     res.status(201).json({ token });
   } catch (error) {
@@ -81,25 +93,31 @@ app.post('/signup', async (req, res) => {
   }
 });
 
+
 app.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Find the user by email
+ 
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+  
     const user = await User.findOne({ email });
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Check if the password is valid
+   
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Create a JWT token
+ 
     const token = jwt.sign({ userId: user._id }, process.env.jwtSecret);
 
     res.status(200).json({ token });
@@ -109,21 +127,17 @@ app.post('/login', async (req, res) => {
   }
 });
 
-app.get('/todos', authMiddleware, async (req, res) => {
-  try {
-    const todos = await Todo.find({ user: req.userId });
-    res.status(200).json(todos);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
-app.post('/todos', authMiddleware, async (req, res) => {
+
+
+
+
+app.post('/api/todos', authMiddleware, async (req, res) => {
   try {
     const { taskname, status, tag } = req.body;
+    const userId = req.user; 
 
-    // Validate user input
+  
     if (!taskname || !status || !tag) {
       return res.status(400).json({ error: 'All fields are required' });
     }
@@ -132,7 +146,7 @@ app.post('/todos', authMiddleware, async (req, res) => {
       taskname,
       status,
       tag,
-      user: req.userId,
+      user: userId,
     });
 
     const savedTodo = await newTodo.save();
@@ -143,27 +157,47 @@ app.post('/todos', authMiddleware, async (req, res) => {
   }
 });
 
-app.put('/todos/:todoID', authMiddleware, async (req, res) => {
+
+
+
+app.get('/api/todos', authMiddleware, async (req, res) => {
+  try {
+    const todos = await Todo.find({ user: req.user.id });
+    res.status(200).json(todos);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+
+app.patch('/api/todos/:id', authMiddleware, async (req, res) => {
   try {
     const { taskname, status, tag } = req.body;
-    const { todoID } = req.params;
+    const { id } = req.params;
 
-    // Validate user input
-    if (!taskname || !status || !tag) {
-      return res.status(400).json({ error: 'All fields are required' });
+
+    if (!taskname && !status && !tag) {
+      return res.status(400).json({ error: 'At least one field is required for the update' });
     }
 
-    // Find the todo by ID and user
-    const todo = await Todo.findOne({ _id: todoID, user: req.userId });
+
+    const todo = await Todo.findOne({ _id: id, user: req.user.id });
 
     if (!todo) {
       return res.status(404).json({ error: 'Todo not found' });
     }
 
-    // Update todo fields
-    todo.taskname = taskname;
-    todo.status = status;
-    todo.tag = tag;
+    if (taskname) {
+      todo.taskname = taskname;
+    }
+    if (status) {
+      todo.status = status;
+    }
+    if (tag) {
+      todo.tag = tag;
+    }
 
     const updatedTodo = await todo.save();
     res.status(200).json(updatedTodo);
@@ -173,34 +207,38 @@ app.put('/todos/:todoID', authMiddleware, async (req, res) => {
   }
 });
 
-app.delete('/todos/:todoID', authMiddleware, async (req, res) => {
+
+
+app.delete('/api/todos/:todoID', authMiddleware, async (req, res) => {
   try {
     const { todoID } = req.params;
+    const userId = req.user.id;
 
-    // Find the todo by ID and user
-    const todo = await Todo.findOne({ _id: todoID, user: req.userId });
+    console.log('Deleting todo for user:', userId);
+    console.log('Deleting todo with ID:', todoID);
 
-    if (!todo) {
+  
+    const deletedTodo = await Todo.findOneAndRemove({ _id: todoID, user: userId });
+
+    if (!deletedTodo) {
+      console.error('Todo not found for deletion:', todoID);
       return res.status(404).json({ error: 'Todo not found' });
     }
 
-    // Delete the todo
-    await todo.remove();
-    res.status(204).end(); // 204 No Content response
+    console.log('Todo deleted successfully:', deletedTodo);
+
+    res.status(204).end(); 
   } catch (error) {
-    console.error(error);
+    console.error('Error deleting todo:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Start the server
-app.listen(port, async () => {
-  try {
-    await connection;
-    console.log("Connection established successfully");
-  } catch (error) {
-    console.log("Error connecting with mongoose db", error);
-  }
-  console.log(`listening to server http://localhost:${port
-}`);
+
+
+
+
+
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
 });
