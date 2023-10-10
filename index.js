@@ -132,7 +132,7 @@ app.post('/login', async (req, res) => {
 
 
 
-app.post('/api/todos', authMiddleware, async (req, res) => {
+app.post('/todos', authMiddleware, async (req, res) => {
   try {
     const { taskname, status, tag } = req.body;
     const userId = req.user; 
@@ -160,7 +160,7 @@ app.post('/api/todos', authMiddleware, async (req, res) => {
 
 
 
-app.get('/api/todos', authMiddleware, async (req, res) => {
+app.get('/todos', authMiddleware, async (req, res) => {
   try {
     const todos = await Todo.find({ user: req.user.id });
     res.status(200).json(todos);
@@ -172,7 +172,7 @@ app.get('/api/todos', authMiddleware, async (req, res) => {
 
 
 
-app.patch('/api/todos/:id', authMiddleware, async (req, res) => {
+app.patch('/todos/:id', authMiddleware, async (req, res) => {
   try {
     const { taskname, status, tag } = req.body;
     const { id } = req.params;
@@ -209,7 +209,7 @@ app.patch('/api/todos/:id', authMiddleware, async (req, res) => {
 
 
 
-app.delete('/api/todos/:todoID', authMiddleware, async (req, res) => {
+app.delete('/todos/:todoID', authMiddleware, async (req, res) => {
   try {
     const { todoID } = req.params;
     const userId = req.user.id;
