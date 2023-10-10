@@ -38,7 +38,7 @@ const Todo = mongoose.model('Todo', TodoSchema);
 
 
 const authMiddleware = (req, res, next) => {
-  const token = req.header('x-auth-token');
+  const token = req.header('token');
 
   if (!token) {
     return res.status(401).json({ msg: 'Authorization denied' });
@@ -229,6 +229,46 @@ app.delete('/todos/:todoID', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Get all todos for the authenticated user with optional filtering
+app.get('/todos', authMiddleware, async (req, res) => {
+  try {
+    const { status, tag } = req.query;
+    const userId = req.user.id;
+
+    // Create a filter object based on query parameters
+    const filter = { user: userId };
+    if (status) filter.status = status;
+    if (tag) filter.tag = tag;
+
+    const todos = await Todo.find(filter);
+    res.status(200).json(todos);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get a specific todo by its ID for the authenticated user
+app.get('/todos/:todoID', authMiddleware, async (req, res) => {
+  try {
+    const { todoID } = req.params;
+    const userId = req.user.id;
+
+    // Find the todo by ID and user
+    const todo = await Todo.findOne({ _id: todoID, user: userId });
+
+    if (!todo) {
+      return res.status(404).json({ error: 'Todo not found' });
+    }
+
+    res.status(200).json(todo);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 
 
