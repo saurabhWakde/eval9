@@ -135,7 +135,7 @@ app.post('/login', async (req, res) => {
 app.post('/todos', authMiddleware, async (req, res) => {
   try {
     const { taskname, status, tag } = req.body;
-    const userId = req.user; 
+    const userId = req.user.id; 
 
   
     if (!taskname || !status || !tag) {
