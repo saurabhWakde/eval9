@@ -4,21 +4,16 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const { connection } = require("./config/config");
+
 
 require("dotenv").config();
 
 const app = express();
+app.use(cors());
+app.use(express.json());
 const port = process.env.PORT || 3005;
 
-
-
-// MongoDB Setup
-mongoose
-  .connect(process.env.MONGO_URL, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-// Models
 const User = mongoose.model('User', {
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
@@ -36,13 +31,14 @@ const Todo = mongoose.model('Todo', {
 const authMiddleware = (req, res, next) => {
   // Get the token from the request headers
   const token = req.headers.authorization;
+  console.log('Received token:', token);
 
   if (!token) {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
   // Verify the token
-  jwt.verify(token, config.jwtSecret, (err, decoded) => {
+  jwt.verify(token, process.env.jwtSecret, (err, decoded) => {
     if (err) {
       return res.status(401).json({ error: 'Invalid token' });
     }
@@ -62,7 +58,7 @@ app.get('/',(req,res)=>
 {
     res.send("welcome to homepage")
 })
-app.post('/auth/signup', async (req, res) => {
+app.post('/signup', async (req, res) => {
   try {
     const { email, password, ipAddress } = req.body;
 
@@ -76,7 +72,7 @@ app.post('/auth/signup', async (req, res) => {
     await user.save();
 
     // Create a JWT token
-    const token = jwt.sign({ userId: user._id }, config.jwtSecret);
+    const token = jwt.sign({ userId: user._id },process.env.jwtSecret);
 
     res.status(201).json({ token });
   } catch (error) {
@@ -85,7 +81,7 @@ app.post('/auth/signup', async (req, res) => {
   }
 });
 
-app.post('/auth/login', async (req, res) => {
+app.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -104,7 +100,7 @@ app.post('/auth/login', async (req, res) => {
     }
 
     // Create a JWT token
-    const token = jwt.sign({ userId: user._id }, config.jwtSecret);
+    const token = jwt.sign({ userId: user._id }, process.env.jwtSecret);
 
     res.status(200).json({ token });
   } catch (error) {
@@ -198,6 +194,13 @@ app.delete('/todos/:todoID', authMiddleware, async (req, res) => {
 });
 
 // Start the server
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+app.listen(port, async () => {
+  try {
+    await connection;
+    console.log("Connection established successfully");
+  } catch (error) {
+    console.log("Error connecting with mongoose db", error);
+  }
+  console.log(`listening to server http://localhost:${port
+}`);
 });
